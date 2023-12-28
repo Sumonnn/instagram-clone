@@ -1,9 +1,12 @@
 var express = require('express');
 var router = express.Router();
 const User = require("../Models/userModel.js");
+const Post = require('../Models/postModel.js');
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 passport.use(new LocalStrategy(User.authenticate()));
+
+const upload = require('./multer.js');
 
 
 router.get('/', function (req, res) {
@@ -14,26 +17,51 @@ router.get('/login', function (req, res) {
   res.render('login', { footer: false });
 });
 
-router.get('/feed', function (req, res) {
-  res.render('feed', { footer: true });
+router.get('/feed', async function (req, res) {
+  try {
+    const posts = await Post.find().populate('user');
+    // console.log(posts);
+    res.render('feed', { posts: posts, footer: true });
+  } catch (error) {
+    res.send(error);
+  }
 });
 
-router.get('/profile',isLoggedIn, function (req, res) {
-  res.render('profile', { footer: true });
+router.get('/profile', async function (req, res) {
+  try {
+    const user = await User.findOne({ username: req.session.passport.user }).populate("posts");
+    res.render('profile', { footer: true, user: user });
+  } catch (error) {
+    res.send(error);
+  }
 });
 
 router.get('/search', function (req, res) {
   res.render('search', { footer: true });
 });
 
-router.get('/edit', function (req, res) {
-  res.render('edit', { footer: true });
+router.get('/edit', async function (req, res) {
+  try {
+    const user = await User.findOne({ username: req.session.passport.user });
+    res.render('edit', { footer: true, user: user });
+  } catch (error) {
+    res.send(error);
+  }
 });
 
 router.get('/upload', function (req, res) {
   res.render('upload', { footer: true });
 });
-
+// ----------------Axios Username sreach route------------------------------
+router.get('/username/:username', async (req, res) => {
+  try {
+    const regex = new RegExp(`^${req.params.username}`, 'i');
+    const users = await User.find({ username: regex })
+    res.json(users);
+  } catch (error) {
+    res.send(error);
+  }
+})
 // -------------------Authentication Code-----------------------------
 router.post('/register', async (req, res) => {
   try {
@@ -78,6 +106,37 @@ router.get("/logout", isLoggedIn, function (req, res, next) {
   });
 });
 
+// --------------------Multer------------------------------
+router.post("/update", upload.single('image'), async (req, res) => {
+  try {
+    const user = await User.findOneAndUpdate(
+      { username: req.session.passport.user },
+      { username: req.body.username, name: req.body.name, bio: req.body.bio },
+      { new: true }
+    );
+    if (req.file) {
+      user.profileImage = req.file.filename;
+    }
+    await user.save();
+    res.redirect('/profile');
+  } catch (error) {
+    res.send(error);
+  }
+})
 
-
+router.post('/upload', upload.single('image'), async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.session.passport.user });
+    const post = await Post.create({
+      picture: req.file.filename,
+      user: user._id,
+      caption: req.body.caption,
+    })
+    user.posts.push(post._id);
+    await user.save();
+    res.redirect('/feed');
+  } catch (error) {
+    res.send(error);
+  }
+})
 module.exports = router;
