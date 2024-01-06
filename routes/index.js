@@ -17,17 +17,18 @@ router.get('/login', function (req, res) {
   res.render('login', { footer: false });
 });
 
-router.get('/feed', async function (req, res) {
+router.get('/feed', isLoggedIn, async function (req, res) {
   try {
+    const user = await User.findOne({ username: req.session.passport.user });
     const posts = await Post.find().populate('user');
     // console.log(posts);
-    res.render('feed', { posts: posts, footer: true });
+    res.render('feed', { posts: posts, footer: true, user: user });
   } catch (error) {
     res.send(error);
   }
 });
 
-router.get('/profile', async function (req, res) {
+router.get('/profile', isLoggedIn, async function (req, res) {
   try {
     const user = await User.findOne({ username: req.session.passport.user }).populate("posts");
     res.render('profile', { footer: true, user: user });
@@ -40,7 +41,7 @@ router.get('/search', function (req, res) {
   res.render('search', { footer: true });
 });
 
-router.get('/edit', async function (req, res) {
+router.get('/edit', isLoggedIn, async function (req, res) {
   try {
     const user = await User.findOne({ username: req.session.passport.user });
     res.render('edit', { footer: true, user: user });
@@ -52,8 +53,9 @@ router.get('/edit', async function (req, res) {
 router.get('/upload', function (req, res) {
   res.render('upload', { footer: true });
 });
+
 // ----------------Axios Username sreach route------------------------------
-router.get('/username/:username', async (req, res) => {
+router.get('/username/:username', isLoggedIn, async (req, res) => {
   try {
     const regex = new RegExp(`^${req.params.username}`, 'i');
     const users = await User.find({ username: regex })
@@ -107,7 +109,7 @@ router.get("/logout", isLoggedIn, function (req, res, next) {
 });
 
 // --------------------Multer------------------------------
-router.post("/update", upload.single('image'), async (req, res) => {
+router.post("/update", isLoggedIn, upload.single('image'), async (req, res) => {
   try {
     const user = await User.findOneAndUpdate(
       { username: req.session.passport.user },
@@ -124,7 +126,7 @@ router.post("/update", upload.single('image'), async (req, res) => {
   }
 })
 
-router.post('/upload', upload.single('image'), async (req, res) => {
+router.post('/upload', isLoggedIn, upload.single('image'), async (req, res) => {
   try {
     const user = await User.findOne({ username: req.session.passport.user });
     const post = await Post.create({
@@ -139,4 +141,23 @@ router.post('/upload', upload.single('image'), async (req, res) => {
     res.send(error);
   }
 })
+
+// ----------------------Like and Unlike section------------------------
+router.get('/post/like/:id', isLoggedIn, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.session.passport.user });
+    const post = await Post.findOne({ _id: req.params.id });
+    if (post.likes.indexOf(user._id) === -1) {
+      post.likes.push(user._id);
+    }
+    else {
+      post.likes.splice(post.likes.indexOf(user._id), 1);
+    }
+    await post.save();
+    res.redirect('/feed');
+  } catch (error) {
+    res.send(error);
+  }
+})
+
 module.exports = router;
