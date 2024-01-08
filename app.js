@@ -5,6 +5,7 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 //DB Conneted
 require('./Models/Config.js');
+
 const passport = require("passport");
 const session = require("express-session");
 const User = require("./Models/userModel.js");
